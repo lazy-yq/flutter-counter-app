@@ -1,0 +1,27 @@
+name: flutter_counter_app
+description: 悬浮窗计数器 - 支持系统级悬浮窗显示计数，数据持久化，前台服务通知
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # 悬浮窗与前台服务插件
+  flutter_overlay_window: ^0.4.5
+  # 数据持久化
+  shared_preferences: ^2.2.3
+  # 权限处理辅助
+  permission_handler: ^11.3.1
+  # Material Design 图标
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2
+
+flutter:
+  uses-material-design: true

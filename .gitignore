@@ -1,0 +1,27 @@
+# Flutter 相关
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.vscode/
+
+# Android 相关
+android/app/build/
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/keystore.jks
+
+# iOS 相关
+ios/Pods/
+ios/.symlinks/
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 测试
+coverage/

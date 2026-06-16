@@ -1,0 +1,74 @@
+// filename: android/app/src/main/AndroidManifest.xml
+// Android 清单文件：声明悬浮窗权限、前台服务权限、前台服务组件、广播接收器
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.counter.flutter_app">
+
+    <!-- Android 12+ 通知权限 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 系统级悬浮窗权限（必须在设置中手动授予） -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 前台服务权限（Android 9+ 需要） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- 前台服务类型权限 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- 请求忽略电池优化权限 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- 通知栏操作广播权限 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:label="悬浮计数器"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:supportsRtl="true"
+        android:theme="@style/LaunchTheme">
+
+        <!-- Flutter 主 Activity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- flutter_overlay_window 插件所需的悬浮窗服务 -->
+        <service
+            android:name="com.teamfox.flutter_overlay_window.OverlayService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <!-- 计数器自定义前台服务 - 用于显示带关闭按钮的常驻通知 -->
+        <service
+            android:name="com.counter.flutter_app.CounterForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <!-- 收取通知栏"关闭"操作广播的接收器 -->
+        <receiver
+            android:name="com.counter.flutter_app.CloseActionReceiver"
+            android:exported="false" />
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>

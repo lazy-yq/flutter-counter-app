@@ -1,0 +1,73 @@
+// filename: android/app/build.gradle
+// Android 应用级构建文件 - compileSdk 34, minSdk 26, 签名配置支持
+
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+// 读取签名配置文件（用于 Release 构建）
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace = "com.counter.flutter_app"
+    compileSdk = 34
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        applicationId = "com.counter.flutter_app"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0.0"
+    }
+
+    signingConfigs {
+        if (System.getenv("CI") == "true") {
+            // CI 环境：从 GitHub Secrets 注入的签名配置
+            release {
+                keyAlias = System.getenv("KEY_ALIAS") ?: keystoreProperties['keyAlias']
+                keyPassword = System.getenv("KEY_PASSWORD") ?: keystoreProperties['keyPassword']
+                storeFile = rootProject.file('app/keystore.jks')
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: keystoreProperties['storePassword']
+            }
+        } else if (keystorePropertiesFile.exists()) {
+            // 本地开发环境：从 key.properties 读取
+            release {
+                keyAlias = keystoreProperties['keyAlias']
+                keyPassword = keystoreProperties['keyPassword']
+                storeFile = keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                storePassword = keystoreProperties['storePassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.release
+            minifyEnabled = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            // Debug 模式不需要签名
+            signingConfig = signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
