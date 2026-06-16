@@ -149,25 +149,23 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
       final count = await CounterService.instance.getCount();
 
       // 启动悬浮窗（enableDrag: true 支持拖拽移动）
-      final result = await FlutterOverlayWindow.showOverlay(
+      await FlutterOverlayWindow.showOverlay(
         height: 120,
         width: 120,
         alignment: OverlayAlignment.center,
-        flag: OverlayFlag.focusPointer | OverlayFlag.defaultSkip,
+        flag: OverlayFlag.focusPointer,
         enableDrag: true,
         overlayTitle: '计数器悬浮窗',
         overlayContent: '当前计数: $count',
       );
 
-      if (result ?? false) {
-        _isOverlayShowing = true;
-        // 将当前计数同步给悬浮窗（跨 isolate 通信）
-        await FlutterOverlayWindow.shareData(
-          {'action': 'updateCount', 'count': count},
-        );
-        // 启动前台通知服务
-        await _startForegroundService(count);
-      }
+      _isOverlayShowing = true;
+      // 将当前计数同步给悬浮窗（跨 isolate 通信）
+      await FlutterOverlayWindow.shareData(
+        {'action': 'updateCount', 'count': count},
+      );
+      // 启动前台通知服务
+      await _startForegroundService(count);
     } catch (e) {
       debugPrint('显示悬浮窗失败: $e');
     }

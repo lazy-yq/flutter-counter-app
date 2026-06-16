@@ -1,5 +1,5 @@
 // filename: android/app/build.gradle
-// Android 应用级构建文件 - compileSdk 34, minSdk 26, 签名配置支持
+// Android 应用级构建文件 - compileSdk 35, minSdk 26, 签名配置支持
 
 plugins {
     id "com.android.application"
@@ -16,7 +16,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.counter.flutter_app"
-    compileSdk = 34
+    compileSdk = 35
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -30,7 +30,7 @@ android {
     defaultConfig {
         applicationId = "com.counter.flutter_app"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
     }
