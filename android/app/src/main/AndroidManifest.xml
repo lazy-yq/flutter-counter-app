@@ -1,6 +1,3 @@
-// filename: android/app/src/main/AndroidManifest.xml
-// Android 清单文件：声明悬浮窗权限、前台服务权限、前台服务组件、广播接收器
-
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.counter.flutter_app">
 
