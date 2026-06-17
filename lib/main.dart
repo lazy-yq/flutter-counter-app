@@ -139,7 +139,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
           height: 130,
           width: 130,
           alignment: OverlayAlignment.center,
-          flag: OverlayFlag.defaultMode,
+          flag: OverlayFlag.defaultFlag,
           enableDrag: true,
           overlayTitle: counter.name,
           overlayContent: '${counter.count}',
