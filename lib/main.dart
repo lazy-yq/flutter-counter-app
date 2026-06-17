@@ -43,7 +43,8 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     with WidgetsBindingObserver {
   final MethodChannel _channel = const MethodChannel(_channelName);
   bool _isOverlayShowing = false;
-  Counter? _pendingCounter;
+  // 防止多次创建悬浮窗的锁
+  bool _isCreatingOverlay = false;
 
   @override
   void initState() {
@@ -69,17 +70,9 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.paused) {
-      _onAppPaused();
-    } else if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed) {
       _onAppResumed();
     }
-  }
-
-  Future<void> _onAppPaused() async {
-    if (_isOverlayShowing || _pendingCounter == null) return;
-    await _showOverlay(_pendingCounter!);
-    _pendingCounter = null;
   }
 
   Future<void> _onAppResumed() async {
@@ -123,25 +116,24 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
 
     await CounterService.instance.setActiveCounterId(counter.id);
 
-    // 如果悬浮窗已显示，只切换活跃计数器
+    // 如果悬浮窗已显示，只切换计数器
     if (_isOverlayShowing) {
       await _updateOverlayData(counter);
       return;
     }
 
-    // 保存待显示计数器，最小化触发 paused → 显示悬浮窗
-    _pendingCounter = counter;
+    // 先创建悬浮窗，再最小化
+    await _showOverlay(counter);
+    // 短暂延迟确保悬浮窗引擎完全启动后再最小化
+    await Future.delayed(const Duration(milliseconds: 300));
     try {
       await _channel.invokeMethod('moveTaskToBack');
-    } catch (_) {
-      // 最小化失败则直接显示悬浮窗
-      await _showOverlay(counter);
-      _pendingCounter = null;
-    }
+    } catch (_) {}
   }
 
   Future<void> _showOverlay(Counter counter) async {
-    if (_isOverlayShowing) return;
+    if (_isOverlayShowing || _isCreatingOverlay) return;
+    _isCreatingOverlay = true;
     try {
       await FlutterOverlayWindow.showOverlay(
         height: 130,
@@ -157,6 +149,8 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
       await _startForegroundService(counter);
     } catch (e) {
       debugPrint('显示悬浮窗失败: $e');
+    } finally {
+      _isCreatingOverlay = false;
     }
   }
 

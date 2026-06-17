@@ -209,8 +209,17 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
-              // 外层 GestureDetector 只处理拖拽手势
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _increment(counter),
+                onDoubleTap: () {
+                  if (isOpen) {
+                    setState(() => _swipedCardId = null);
+                  } else {
+                    widget.onEnterPipMode?.call(counter);
+                  }
+                },
+                onLongPress: () => _showOptions(counter),
                 onHorizontalDragEnd: (d) {
                   if (d.primaryVelocity != null && d.primaryVelocity! < -400) {
                     setState(() => _swipedCardId = counter.id);
@@ -222,20 +231,7 @@ class _HomePageState extends State<HomePage> {
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeOut,
                   transform: Matrix4.translationValues(isOpen ? -actionsWidth : 0, 0, 0),
-                  child:
-                  // 内层 GestureDetector 处理点击/双击/长按
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _increment(counter),
-                    onDoubleTap: () {
-                      if (isOpen) {
-                        setState(() => _swipedCardId = null);
-                      } else {
-                        widget.onEnterPipMode?.call(counter);
-                      }
-                    },
-                    onLongPress: () => _showOptions(counter),
-                    child: Container(
+                  child: Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
@@ -277,7 +273,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
