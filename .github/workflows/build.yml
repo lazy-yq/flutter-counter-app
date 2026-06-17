@@ -32,7 +32,7 @@ jobs:
       - name: 安装 Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x'
+          flutter-version: '3.29.3'
           channel: 'stable'
           cache: true
 
