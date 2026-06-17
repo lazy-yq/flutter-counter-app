@@ -43,6 +43,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     with WidgetsBindingObserver {
   final MethodChannel _channel = const MethodChannel(_channelName);
   bool _isOverlayShowing = false;
+  Counter? _pendingPipCounter;
 
   @override
   void initState() {
@@ -60,7 +61,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
 
   Future<dynamic> _handleNativeCall(MethodCall call) async {
     if (call.method == 'onCloseFromNotification') {
-      await _closeOverlayWindow();
+      await _closeOverlay();
     }
     return null;
   }
@@ -68,14 +69,25 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused) {
+      _onAppPaused();
+    } else if (state == AppLifecycleState.resumed) {
       _onAppResumed();
+    }
+  }
+
+  Future<void> _onAppPaused() async {
+    if (_isOverlayShowing) return;
+    // 如果有待进入 PiP 的计数器，显示悬浮窗
+    if (_pendingPipCounter != null && mounted) {
+      await _showOverlay(_pendingPipCounter!);
+      _pendingPipCounter = null;
     }
   }
 
   Future<void> _onAppResumed() async {
     if (_isOverlayShowing) {
-      await _closeOverlayWindow();
+      await _closeOverlay();
     }
     if (mounted) setState(() {});
   }
@@ -85,9 +97,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     if (notifStatus.isDenied) {
       await Permission.notification.request();
     }
-
-    final hasOverlayPerm = await FlutterOverlayWindow.isPermissionGranted();
-    if (!hasOverlayPerm && mounted) {
+    if (!await FlutterOverlayWindow.isPermissionGranted() && mounted) {
       _showPermissionDialog();
     }
   }
@@ -103,15 +113,9 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
           '点击"去设置"后，请找到本应用并开启该权限。',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('稍后再说'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('稍后再说')),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              FlutterOverlayWindow.requestPermission();
-            },
+            onPressed: () { Navigator.pop(ctx); FlutterOverlayWindow.requestPermission(); },
             child: const Text('去设置'),
           ),
         ],
@@ -119,64 +123,69 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     );
   }
 
-  /// 进入悬浮球 PiP 模式
+  /// 双击卡片进入 PiP 模式
   Future<void> _enterPipMode(Counter counter) async {
-    final hasPermission = await FlutterOverlayWindow.isPermissionGranted();
-    if (!hasPermission) {
+    if (!await FlutterOverlayWindow.isPermissionGranted()) {
       if (mounted) _showPermissionDialog();
       return;
     }
 
-    await CounterService.instance.setActiveCounterId(counter.id);
-
-    try {
-      if (_isOverlayShowing) {
-        // 悬浮窗已显示，只更新数据
-        await _updateOverlayCounter(counter);
-      } else {
-        // 首次创建悬浮窗——使用 defaultMode 不拦截系统手势
-        await FlutterOverlayWindow.showOverlay(
-          height: 130,
-          width: 130,
-          alignment: OverlayAlignment.center,
-          flag: OverlayFlag.defaultFlag,
-          enableDrag: true,
-          overlayTitle: counter.name,
-          overlayContent: '${counter.count}',
-        );
-        _isOverlayShowing = true;
-        await _startForegroundService(counter);
-      }
-
-      // 同步计数器数据
-      await _updateOverlayCounter(counter);
-
-      // 最小化应用
-      await _minimizeApp();
-    } catch (e) {
-      debugPrint('进入悬浮球模式失败: $e');
+    // 如果悬浮窗已显示，只需更新数据
+    if (_isOverlayShowing) {
+      await CounterService.instance.setActiveCounterId(counter.id);
+      await _updateOverlayData(counter);
+      if (mounted) setState(() {});
+      return;
     }
-  }
 
-  Future<void> _updateOverlayCounter(Counter counter) async {
-    await FlutterOverlayWindow.shareData({
-      'action': 'updateActiveCounter',
-      'id': counter.id,
-      'name': counter.name,
-      'count': counter.count,
-    });
-  }
+    // 设置活跃计数器，标记待进入 PiP
+    await CounterService.instance.setActiveCounterId(counter.id);
+    _pendingPipCounter = counter;
 
-  Future<void> _minimizeApp() async {
+    // 最小化应用，触发 paused → _onAppPaused → _showOverlay
     try {
       await _channel.invokeMethod('moveTaskToBack');
-    } catch (e) {
-      debugPrint('最小化应用失败: $e');
+    } catch (_) {
+      // moveTaskToBack 失败时直接显示悬浮窗
+      await _showOverlay(counter);
+      _pendingPipCounter = null;
     }
   }
 
-  Future<void> _closeOverlayWindow() async {
+  Future<void> _showOverlay(Counter counter) async {
+    if (_isOverlayShowing) return;
+    try {
+      await FlutterOverlayWindow.showOverlay(
+        height: 130,
+        width: 130,
+        alignment: OverlayAlignment.center,
+        flag: OverlayFlag.focusPointer,
+        enableDrag: true,
+        overlayTitle: counter.name,
+        overlayContent: '${counter.count}',
+      );
+      _isOverlayShowing = true;
+      await _updateOverlayData(counter);
+      await _startForegroundService(counter);
+    } catch (e) {
+      debugPrint('显示悬浮窗失败: $e');
+    }
+  }
+
+  Future<void> _updateOverlayData(Counter counter) async {
+    try {
+      await FlutterOverlayWindow.shareData({
+        'action': 'updateActiveCounter',
+        'id': counter.id,
+        'name': counter.name,
+        'count': counter.count,
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _closeOverlay() async {
     _isOverlayShowing = false;
+    _pendingPipCounter = null;
     await CounterService.instance.setActiveCounterId(null);
     try {
       await FlutterOverlayWindow.closeOverlay();
@@ -200,9 +209,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
   Future<void> _stopForegroundService() async {
     try {
       await _channel.invokeMethod('stopForeground');
-    } catch (e) {
-      debugPrint('停止前台服务失败: $e');
-    }
+    } catch (_) {}
   }
 
   @override

@@ -26,6 +26,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _increment(Counter counter) async {
+    if (_swipedCardId == counter.id) {
+      setState(() => _swipedCardId = null);
+      return;
+    }
     final updated = await CounterService.instance.incrementCounter(counter.id);
     if (updated != null && mounted) {
       setState(() {
@@ -35,18 +39,14 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _enterPipMode(Counter counter) {
-    widget.onEnterPipMode?.call(counter);
-  }
-
   Future<void> _addCounter() async {
-    final nameController = TextEditingController();
-    final result = await showDialog<String>(
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('新增计数器'),
         content: TextField(
-          controller: nameController,
+          controller: ctrl,
           autofocus: true,
           decoration: const InputDecoration(
             hintText: '输入计数器名称',
@@ -54,25 +54,22 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
             child: const Text('创建'),
           ),
         ],
       ),
     );
-
-    if (result != null && result.isNotEmpty) {
-      final counter = await CounterService.instance.addCounter(result);
+    if (name != null && name.isNotEmpty) {
+      final counter = await CounterService.instance.addCounter(name);
       if (mounted) setState(() => _counters.add(counter));
     }
   }
 
-  Future<void> _showCounterOptions(Counter counter) async {
+  Future<void> _showOptions(Counter counter) async {
+    setState(() => _swipedCardId = null);
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -82,34 +79,22 @@ class _HomePageState extends State<HomePage> {
             ListTile(
               leading: const Icon(Icons.edit),
               title: const Text('重命名'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _renameCounter(counter);
-              },
+              onTap: () { Navigator.pop(ctx); _renameCounter(counter); },
             ),
             ListTile(
               leading: const Icon(Icons.restart_alt),
               title: const Text('归零'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _resetCounter(counter);
-              },
+              onTap: () { Navigator.pop(ctx); _resetCounter(counter); },
             ),
             ListTile(
               leading: const Icon(Icons.picture_in_picture),
               title: const Text('进入悬浮球模式'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _enterPipMode(counter);
-              },
+              onTap: () { Navigator.pop(ctx); widget.onEnterPipMode?.call(counter); },
             ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text('删除', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _deleteCounter(counter);
-              },
+              onTap: () { Navigator.pop(ctx); _deleteCounter(counter); },
             ),
           ],
         ),
@@ -118,40 +103,25 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _renameCounter(Counter counter) async {
-    final nameController = TextEditingController(text: counter.name);
-    final result = await showDialog<String>(
+    final ctrl = TextEditingController(text: counter.name);
+    final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('重命名计数器'),
         content: TextField(
-          controller: nameController,
+          controller: ctrl,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '输入新名称',
-            border: OutlineInputBorder(),
-          ),
+          decoration: const InputDecoration(hintText: '输入新名称', border: OutlineInputBorder()),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
-            child: const Text('确定'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('确定')),
         ],
       ),
     );
-
-    if (result != null && result.isNotEmpty) {
-      await CounterService.instance.updateCounterName(counter.id, result);
-      if (mounted) {
-        setState(() {
-          final idx = _counters.indexWhere((c) => c.id == counter.id);
-          if (idx != -1) _counters[idx].name = result;
-        });
-      }
+    if (name != null && name.isNotEmpty) {
+      await CounterService.instance.updateCounterName(counter.id, name);
+      if (mounted) setState(() => _counters.firstWhere((c) => c.id == counter.id).name = name);
     }
   }
 
@@ -159,37 +129,32 @@ class _HomePageState extends State<HomePage> {
     await CounterService.instance.resetCounter(counter.id);
     if (mounted) {
       setState(() {
+        _swipedCardId = null;
         final idx = _counters.indexWhere((c) => c.id == counter.id);
         if (idx != -1) _counters[idx].count = 0;
       });
     }
-    _swipedCardId = null;
   }
 
   Future<void> _deleteCounter(Counter counter) async {
-    final confirm = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除计数器'),
         content: Text('确定要删除"${counter.name}"吗？'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
-
-    if (confirm == true) {
+    if (ok == true) {
       await CounterService.instance.deleteCounter(counter.id);
-      if (mounted) setState(() => _counters.removeWhere((c) => c.id == counter.id));
+      if (mounted) setState(() {
+        _swipedCardId = null;
+        _counters.removeWhere((c) => c.id == counter.id);
+      });
     }
-    _swipedCardId = null;
   }
 
   @override
@@ -208,177 +173,127 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: const Color(0xFF6C5CE7),
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: _counters.isEmpty ? _buildEmptyState() : _buildCounterList(),
+      body: _counters.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.touch_app, size: 80, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text('还没有计数器', style: TextStyle(fontSize: 18, color: Colors.grey.shade500)),
+                  const SizedBox(height: 8),
+                  Text('点击右下角 + 按钮创建', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _counters.length,
+              itemBuilder: (ctx, index) => _buildCard(_counters[index]),
+            ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.touch_app, size: 80, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            '还没有计数器',
-            style: TextStyle(fontSize: 18, color: Colors.grey.shade500),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '点击右下角 + 按钮创建',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCounterList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _counters.length,
-      itemBuilder: (ctx, index) => _buildSwipeableCard(_counters[index]),
-    );
-  }
-
-  Widget _buildSwipeableCard(Counter counter) {
+  Widget _buildCard(Counter counter) {
     final isOpen = _swipedCardId == counter.id;
+    const double actionsWidth = 160;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          if (details.primaryVelocity != null) {
-            if (details.primaryVelocity! < -400) {
-              setState(() => _swipedCardId = counter.id);
-            } else if (details.primaryVelocity! > 400) {
-              setState(() => _swipedCardId = null);
-            }
-          }
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            height: 88,
-            child: Stack(
-              children: [
-                // 左滑显示的操作按钮
-                Positioned.fill(
-                  child: Row(
-                    children: [
-                      const Spacer(),
-                      _buildActionButton(
-                        icon: Icons.restart_alt,
-                        label: '重置',
-                        color: Colors.orange,
-                        onTap: () => _resetCounter(counter),
-                      ),
-                      _buildActionButton(
-                        icon: Icons.delete,
-                        label: '删除',
-                        color: Colors.red,
-                        onTap: () => _deleteCounter(counter),
-                      ),
-                    ],
-                  ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          height: 88,
+          child: Stack(
+            children: [
+              // 滑动露出的操作按钮
+              Positioned.fill(
+                child: Row(
+                  children: [
+                    const Spacer(),
+                    _actionBtn(Icons.restart_alt, '重置', Colors.orange, () => _resetCounter(counter)),
+                    _actionBtn(Icons.delete, '删除', Colors.red, () => _deleteCounter(counter)),
+                  ],
                 ),
-                // 卡片主体（左滑偏移）
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  transform: Matrix4.translationValues(isOpen ? -160 : 0, 0, 0),
-                  child: GestureDetector(
-                    onTap: () {
-                      if (isOpen) {
-                        setState(() => _swipedCardId = null);
-                      } else {
-                        _increment(counter);
-                      }
-                    },
-                    onDoubleTap: () {
-                      if (isOpen) {
-                        setState(() => _swipedCardId = null);
-                      } else {
-                        _enterPipMode(counter);
-                      }
-                    },
-                    onLongPress: () {
+              ),
+              // 卡片主体 — 所有手势集中在一个 GestureDetector
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                transform: Matrix4.translationValues(isOpen ? -actionsWidth : 0, 0, 0),
+                child: GestureDetector(
+                  onTap: () => _increment(counter),
+                  onDoubleTap: () {
+                    if (isOpen) {
                       setState(() => _swipedCardId = null);
-                      _showCounterOptions(counter);
-                    },
-                    child: Container(
-                      height: 88,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                    } else {
+                      widget.onEnterPipMode?.call(counter);
+                    }
+                  },
+                  onLongPress: () => _showOptions(counter),
+                  onHorizontalDragEnd: (d) {
+                    if (d.primaryVelocity != null && d.primaryVelocity! < -400) {
+                      setState(() => _swipedCardId = counter.id);
+                    } else if (d.primaryVelocity != null && d.primaryVelocity! > 400) {
+                      setState(() => _swipedCardId = null);
+                    }
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6C5CE7).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF6C5CE7).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.add_circle,
-                                color: Color(0xFF6C5CE7), size: 28),
+                          child: const Icon(Icons.add_circle, color: Color(0xFF6C5CE7), size: 28),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(counter.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 4),
+                              Text(
+                                isOpen ? '已展开操作按钮' : '左滑操作 | 双击悬浮球',
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  counter.name,
-                                  style: const TextStyle(
-                                      fontSize: 16, fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  isOpen ? '已展开操作按钮' : '左滑操作 | 双击悬浮球',
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.grey.shade400),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${counter.count}',
-                            style: const TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF6C5CE7),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        Text(
+                          '${counter.count}',
+                          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFF6C5CE7)),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _actionBtn(IconData icon, String label, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -390,14 +305,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             Icon(icon, color: Colors.white, size: 24),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
           ],
         ),
       ),

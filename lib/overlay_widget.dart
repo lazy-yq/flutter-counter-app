@@ -53,32 +53,27 @@ class _OverlayWidgetState extends State<OverlayWidget> {
     if (data == null) return;
 
     final list = json.decode(data) as List<dynamic>;
-    final counters = list.map((e) => e as Map<String, dynamic>).toList();
-    final found = counters.where((c) => c['id'] == activeId);
+    final found = list
+        .map((e) => e as Map<String, dynamic>)
+        .where((c) => c['id'] == activeId);
 
-    if (found.isNotEmpty) {
-      if (mounted) {
-        setState(() {
-          _counterId = activeId;
-          _counterName = found.first['name'] as String? ?? '';
-          _count = found.first['count'] as int? ?? 0;
-        });
-      }
+    if (found.isNotEmpty && mounted) {
+      setState(() {
+        _counterId = activeId;
+        _counterName = found.first['name'] as String? ?? '';
+        _count = found.first['count'] as int? ?? 0;
+      });
     }
   }
 
   void _listenToMainApp() {
     _subscription = FlutterOverlayWindow.overlayListener.listen((event) {
-      if (event is Map && event['action'] == 'updateActiveCounter') {
-        if (mounted) {
-          final name = event['name'] as String? ?? _counterName;
-          final count = event['count'] as int? ?? _count;
-          setState(() {
-            _counterId = event['id'] as String?;
-            _counterName = name;
-            _count = count;
-          });
-        }
+      if (event is Map && event['action'] == 'updateActiveCounter' && mounted) {
+        setState(() {
+          _counterId = event['id'] as String?;
+          _counterName = event['name'] as String? ?? _counterName;
+          _count = event['count'] as int? ?? _count;
+        });
       }
     });
   }
@@ -100,21 +95,23 @@ class _OverlayWidgetState extends State<OverlayWidget> {
     }
   }
 
+  /// 双击关闭悬浮球
+  Future<void> _closeOverlay() async {
+    await FlutterOverlayWindow.closeOverlay();
+  }
+
   void _onLongPress() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('关闭悬浮球'),
-        content: const Text('确定要关闭悬浮球吗？\n关闭后需重新打开应用。'),
+        content: const Text('确定要关闭悬浮球吗？'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              FlutterOverlayWindow.closeOverlay();
+              _closeOverlay();
             },
             child: const Text('关闭', style: TextStyle(color: Colors.red)),
           ),
@@ -129,6 +126,7 @@ class _OverlayWidgetState extends State<OverlayWidget> {
       type: MaterialType.transparency,
       child: GestureDetector(
         onTap: _increment,
+        onDoubleTap: _closeOverlay,
         onLongPress: _onLongPress,
         child: Center(
           child: Container(
@@ -154,14 +152,17 @@ class _OverlayWidgetState extends State<OverlayWidget> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (_counterName.isNotEmpty)
-                  Text(
-                    _counterName,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w500,
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      _counterName,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 Text(
                   '$_count',
