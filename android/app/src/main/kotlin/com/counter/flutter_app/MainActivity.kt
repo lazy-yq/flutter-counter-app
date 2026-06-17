@@ -24,16 +24,22 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "startForeground" -> {
                         val count = call.argument<Int>("count") ?: 0
-                        startCounterForegroundService(count)
+                        val name = call.argument<String>("name") ?: ""
+                        startCounterForegroundService(count, name)
                         result.success(true)
                     }
                     "updateCount" -> {
                         val count = call.argument<Int>("count") ?: 0
-                        CounterForegroundService.updateNotification(this, count)
+                        val name = call.argument<String>("name") ?: ""
+                        CounterForegroundService.updateNotification(this, count, name)
                         result.success(true)
                     }
                     "stopForeground" -> {
                         stopCounterForegroundService()
+                        result.success(true)
+                    }
+                    "moveTaskToBack" -> {
+                        moveTaskToBack(true)
                         result.success(true)
                     }
                     else -> result.notImplemented()
@@ -41,9 +47,10 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    private fun startCounterForegroundService(count: Int) {
+    private fun startCounterForegroundService(count: Int, name: String) {
         val intent = Intent(this, CounterForegroundService::class.java).apply {
             putExtra("count", count)
+            putExtra("name", name)
         }
         startForegroundService(intent)
     }

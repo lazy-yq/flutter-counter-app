@@ -18,12 +18,15 @@ class CounterForegroundService : Service() {
         const val NOTIFICATION_ID = 1001
         const val ACTION_CLOSE = "com.counter.flutter_app.ACTION_CLOSE_FOREGROUND"
 
-        fun updateNotification(context: Context, count: Int) {
+        private var currentName: String = ""
+
+        fun updateNotification(context: Context, count: Int, name: String = "") {
+            currentName = name
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(NOTIFICATION_ID, buildNotification(context, count))
+            manager.notify(NOTIFICATION_ID, buildNotification(context, count, name))
         }
 
-        fun buildNotification(context: Context, count: Int): Notification {
+        fun buildNotification(context: Context, count: Int, name: String = ""): Notification {
             val closeIntent = Intent(context, CloseActionReceiver::class.java).apply {
                 action = ACTION_CLOSE
             }
@@ -46,10 +49,13 @@ class CounterForegroundService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
+            val title = if (name.isNotEmpty()) "悬浮球: $name" else "计数器悬浮窗正在运行"
+            val content = if (name.isNotEmpty()) "$name: $count" else "当前计数: $count"
+
             return NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("计数器悬浮窗正在运行")
-                .setContentText("当前计数: $count")
+                .setContentTitle(title)
+                .setContentText(content)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setContentIntent(launchPendingIntent)
@@ -71,7 +77,9 @@ class CounterForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val count = intent?.getIntExtra("count", 0) ?: 0
-        startForeground(NOTIFICATION_ID, buildNotification(this, count))
+        val name = intent?.getStringExtra("name") ?: ""
+        currentName = name
+        startForeground(NOTIFICATION_ID, buildNotification(this, count, name))
         return START_STICKY
     }
 

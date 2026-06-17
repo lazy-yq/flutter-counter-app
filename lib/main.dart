@@ -1,6 +1,3 @@
-// filename: lib/main.dart
-// 应用主入口 - 权限检查、生命周期监听、悬浮窗启动/关闭、前台通知服务控制
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,19 +5,16 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'home_page.dart';
 import 'counter_service.dart';
-import 'overlay_widget.dart'; // 确保 overlayMain() 不被 tree-shaking
+import 'overlay_widget.dart';
 
-/// MethodChannel 名称（与 MainActivity.kt 中 CHANNEL 保持一致）
 const String _channelName = 'counter/foreground';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // 保持对 overlayMain 的引用，防止 AOT 编译时移除
   overlayMain;
   runApp(const CounterApp());
 }
 
-/// 应用根 Widget
 class CounterApp extends StatelessWidget {
   const CounterApp({super.key});
 
@@ -30,7 +24,7 @@ class CounterApp extends StatelessWidget {
       title: '悬浮窗计数器',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: Colors.blue,
+        colorSchemeSeed: const Color(0xFF6C5CE7),
         useMaterial3: true,
       ),
       home: const AppLifecycleManager(),
@@ -38,10 +32,6 @@ class CounterApp extends StatelessWidget {
   }
 }
 
-/// 应用生命周期管理器
-/// - 监听前后台切换，控制悬浮窗显隐
-/// - 管理前台通知服务
-/// - 处理权限请求
 class AppLifecycleManager extends StatefulWidget {
   const AppLifecycleManager({super.key});
 
@@ -58,11 +48,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
-    // 注册来自 Android 原生层的消息（通知栏关闭按钮等）
     _channel.setMethodCallHandler(_handleNativeCall);
-
-    // 启动后检查权限
     _requestPermissions();
   }
 
@@ -72,7 +58,6 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     super.dispose();
   }
 
-  /// 处理 Native 层 MethodCall（通知栏关闭按钮）
   Future<dynamic> _handleNativeCall(MethodCall call) async {
     if (call.method == 'onCloseFromNotification') {
       await _closeOverlayWindow();
@@ -80,34 +65,34 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     return null;
   }
 
-  /// 应用生命周期回调：进入后台 -> 显示悬浮窗，回到前台 -> 隐藏悬浮窗
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-
-    if (state == AppLifecycleState.paused) {
-      _showOverlayWindow();
-    } else if (state == AppLifecycleState.resumed) {
-      _hideOverlayWindow();
+    if (state == AppLifecycleState.resumed) {
+      _onAppResumed();
     }
   }
 
-  /// 按需请求通知权限和悬浮窗权限
+  Future<void> _onAppResumed() async {
+    if (_isOverlayShowing) {
+      await _closeOverlayWindow();
+    }
+    // 刷新主页数据
+    if (mounted) setState(() {});
+  }
+
   Future<void> _requestPermissions() async {
-    // Android 13+ 通知权限
     final notifStatus = await Permission.notification.status;
     if (notifStatus.isDenied) {
       await Permission.notification.request();
     }
 
-    // 检查悬浮窗权限
     final hasOverlayPerm = await FlutterOverlayWindow.isPermissionGranted();
     if (!hasOverlayPerm && mounted) {
       _showPermissionDialog();
     }
   }
 
-  /// 权限引导对话框
   void _showPermissionDialog() {
     showDialog(
       context: context,
@@ -135,76 +120,79 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     );
   }
 
-  /// 显示悬浮窗 + 前台通知
-  Future<void> _showOverlayWindow() async {
-    if (_isOverlayShowing) return;
-
+  /// 进入悬浮球 PiP 模式：保存活跃计数器、显示悬浮窗、最小化应用
+  Future<void> _enterPipMode(Counter counter) async {
     final hasPermission = await FlutterOverlayWindow.isPermissionGranted();
     if (!hasPermission) {
       if (mounted) _showPermissionDialog();
       return;
     }
 
-    try {
-      final count = await CounterService.instance.getCount();
+    // 保存活跃计数器
+    await CounterService.instance.setActiveCounterId(counter.id);
 
-      // 启动悬浮窗（enableDrag: true 支持拖拽移动）
+    try {
       await FlutterOverlayWindow.showOverlay(
-        height: 120,
-        width: 120,
+        height: 100,
+        width: 100,
         alignment: OverlayAlignment.center,
         flag: OverlayFlag.focusPointer,
         enableDrag: true,
-        overlayTitle: '计数器悬浮窗',
-        overlayContent: '当前计数: $count',
+        overlayTitle: '${counter.name} - ${counter.count}',
+        overlayContent: '${counter.name}: ${counter.count}',
       );
 
       _isOverlayShowing = true;
-      // 将当前计数同步给悬浮窗（跨 isolate 通信）
-      await FlutterOverlayWindow.shareData(
-        {'action': 'updateCount', 'count': count},
-      );
+
+      // 同步计数器数据给悬浮窗
+      await FlutterOverlayWindow.shareData({
+        'action': 'updateActiveCounter',
+        'id': counter.id,
+        'name': counter.name,
+        'count': counter.count,
+      });
+
       // 启动前台通知服务
-      await _startForegroundService(count);
+      await _startForegroundService(counter);
+
+      // 最小化应用
+      await _minimizeApp();
     } catch (e) {
-      debugPrint('显示悬浮窗失败: $e');
+      debugPrint('进入悬浮球模式失败: $e');
     }
   }
 
-  /// 隐藏悬浮窗（应用回到前台）
-  Future<void> _hideOverlayWindow() async {
-    if (!_isOverlayShowing) return;
-
+  /// 通过原生层最小化应用
+  Future<void> _minimizeApp() async {
     try {
-      await FlutterOverlayWindow.closeOverlay();
-      _isOverlayShowing = false;
-      await _stopForegroundService();
-
-      // 刷新主页计数（悬浮窗可能在后台修改了计数）
-      if (mounted) setState(() {});
+      await _channel.invokeMethod('moveTaskToBack');
     } catch (e) {
-      debugPrint('关闭悬浮窗失败: $e');
+      debugPrint('最小化应用失败: $e');
     }
   }
 
-  /// 通知栏关闭按钮触发
   Future<void> _closeOverlayWindow() async {
     _isOverlayShowing = false;
+    await CounterService.instance.setActiveCounterId(null);
     try {
       await FlutterOverlayWindow.closeOverlay();
     } catch (_) {}
+    try {
+      await _stopForegroundService();
+    } catch (_) {}
   }
 
-  /// 启动前台通知服务
-  Future<void> _startForegroundService(int count) async {
+  Future<void> _startForegroundService(Counter counter) async {
     try {
-      await _channel.invokeMethod('startForeground', {'count': count});
+      await _channel.invokeMethod('startForeground', {
+        'count': counter.count,
+        'name': counter.name,
+      });
     } catch (e) {
       debugPrint('启动前台服务失败: $e');
     }
   }
 
-  /// 停止前台通知服务
   Future<void> _stopForegroundService() async {
     try {
       await _channel.invokeMethod('stopForeground');
@@ -215,6 +203,6 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
 
   @override
   Widget build(BuildContext context) {
-    return const HomePage();
+    return HomePage(onEnterPipMode: _enterPipMode);
   }
 }
