@@ -53,9 +53,7 @@ class _OverlayWidgetState extends State<OverlayWidget> {
     if (data == null) return;
 
     final list = json.decode(data) as List<dynamic>;
-    final found = list
-        .map((e) => e as Map<String, dynamic>)
-        .where((c) => c['id'] == activeId);
+    final found = (list).map((e) => e as Map<String, dynamic>).where((c) => c['id'] == activeId);
 
     if (found.isNotEmpty && mounted) {
       setState(() {
@@ -96,6 +94,8 @@ class _OverlayWidgetState extends State<OverlayWidget> {
   }
 
   Future<void> _closeOverlay() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_activeCounterKey);
     await FlutterOverlayWindow.closeOverlay();
   }
 
@@ -108,10 +108,7 @@ class _OverlayWidgetState extends State<OverlayWidget> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _closeOverlay();
-            },
+            onPressed: () { Navigator.pop(ctx); _closeOverlay(); },
             child: const Text('关闭', style: TextStyle(color: Colors.red)),
           ),
         ],
@@ -151,21 +148,13 @@ class _OverlayWidgetState extends State<OverlayWidget> {
                     padding: const EdgeInsets.only(bottom: 2),
                     child: Text(
                       _counterName,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w500),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 Text(
                   '$_count',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                 ),
               ],
             ),

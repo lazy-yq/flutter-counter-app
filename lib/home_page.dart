@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'counter_service.dart';
 
 class HomePage extends StatefulWidget {
   final void Function(Counter counter)? onEnterPipMode;
-
   const HomePage({super.key, this.onEnterPipMode});
 
   @override
@@ -48,17 +48,11 @@ class _HomePageState extends State<HomePage> {
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '输入计数器名称',
-            border: OutlineInputBorder(),
-          ),
+          decoration: const InputDecoration(hintText: '输入计数器名称', border: OutlineInputBorder()),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('创建'),
-          ),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('创建')),
         ],
       ),
     );
@@ -109,8 +103,7 @@ class _HomePageState extends State<HomePage> {
       builder: (ctx) => AlertDialog(
         title: const Text('重命名计数器'),
         content: TextField(
-          controller: ctrl,
-          autofocus: true,
+          controller: ctrl, autofocus: true,
           decoration: const InputDecoration(hintText: '输入新名称', border: OutlineInputBorder()),
         ),
         actions: [
@@ -127,13 +120,11 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _resetCounter(Counter counter) async {
     await CounterService.instance.resetCounter(counter.id);
-    if (mounted) {
-      setState(() {
-        _swipedCardId = null;
-        final idx = _counters.indexWhere((c) => c.id == counter.id);
-        if (idx != -1) _counters[idx].count = 0;
-      });
-    }
+    if (mounted) setState(() {
+      _swipedCardId = null;
+      final idx = _counters.indexWhere((c) => c.id == counter.id);
+      if (idx != -1) _counters[idx].count = 0;
+    });
   }
 
   Future<void> _deleteCounter(Counter counter) async {
@@ -150,47 +141,50 @@ class _HomePageState extends State<HomePage> {
     );
     if (ok == true) {
       await CounterService.instance.deleteCounter(counter.id);
-      if (mounted) setState(() {
-        _swipedCardId = null;
-        _counters.removeWhere((c) => c.id == counter.id);
-      });
+      if (mounted) setState(() { _swipedCardId = null; _counters.removeWhere((c) => c.id == counter.id); });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        title: const Text('计数器'),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF6C5CE7),
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addCounter,
-        backgroundColor: const Color(0xFF6C5CE7),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-      body: _counters.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.touch_app, size: 80, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text('还没有计数器', style: TextStyle(fontSize: 18, color: Colors.grey.shade500)),
-                  const SizedBox(height: 8),
-                  Text('点击右下角 + 按钮创建', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)),
-                ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F6FA),
+        appBar: AppBar(
+          title: const Text('计数器'),
+          centerTitle: true,
+          backgroundColor: const Color(0xFFE53935),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _addCounter,
+          backgroundColor: const Color(0xFFE53935),
+          child: const Icon(Icons.add, color: Colors.white),
+        ),
+        body: _counters.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.touch_app, size: 80, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    Text('还没有计数器', style: TextStyle(fontSize: 18, color: Colors.grey.shade500)),
+                    const SizedBox(height: 8),
+                    Text('点击右下角 + 按钮创建', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _counters.length,
+                itemBuilder: (ctx, index) => _buildCard(_counters[index]),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _counters.length,
-              itemBuilder: (ctx, index) => _buildCard(_counters[index]),
-            ),
+      ),
     );
   }
 
@@ -206,7 +200,6 @@ class _HomePageState extends State<HomePage> {
           height: 88,
           child: Stack(
             children: [
-              // 滑动露出的操作按钮
               Positioned.fill(
                 child: Row(
                   children: [
@@ -216,72 +209,71 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
-              // 卡片主体 — 所有手势集中在一个 GestureDetector
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOut,
-                transform: Matrix4.translationValues(isOpen ? -actionsWidth : 0, 0, 0),
-                child: GestureDetector(
-                  onTap: () => _increment(counter),
-                  onDoubleTap: () {
-                    if (isOpen) {
-                      setState(() => _swipedCardId = null);
-                    } else {
-                      widget.onEnterPipMode?.call(counter);
-                    }
-                  },
-                  onLongPress: () => _showOptions(counter),
-                  onHorizontalDragEnd: (d) {
-                    if (d.primaryVelocity != null && d.primaryVelocity! < -400) {
-                      setState(() => _swipedCardId = counter.id);
-                    } else if (d.primaryVelocity != null && d.primaryVelocity! > 400) {
-                      setState(() => _swipedCardId = null);
-                    }
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6C5CE7).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
+              // 外层 GestureDetector 只处理拖拽手势
+              GestureDetector(
+                onHorizontalDragEnd: (d) {
+                  if (d.primaryVelocity != null && d.primaryVelocity! < -400) {
+                    setState(() => _swipedCardId = counter.id);
+                  } else if (d.primaryVelocity != null && d.primaryVelocity! > 400) {
+                    setState(() => _swipedCardId = null);
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                  transform: Matrix4.translationValues(isOpen ? -actionsWidth : 0, 0, 0),
+                  child:
+                  // 内层 GestureDetector 处理点击/双击/长按
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _increment(counter),
+                    onDoubleTap: () {
+                      if (isOpen) {
+                        setState(() => _swipedCardId = null);
+                      } else {
+                        widget.onEnterPipMode?.call(counter);
+                      }
+                    },
+                    onLongPress: () => _showOptions(counter),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4)),
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48, height: 48,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE53935).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.add_circle, color: Color(0xFFE53935), size: 28),
                           ),
-                          child: const Icon(Icons.add_circle, color: Color(0xFF6C5CE7), size: 28),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(counter.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 4),
-                              Text(
-                                isOpen ? '已展开操作按钮' : '左滑操作 | 双击悬浮球',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                              ),
-                            ],
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(counter.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  isOpen ? '已展开操作按钮' : '左滑操作 | 双击悬浮球',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${counter.count}',
-                          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFF6C5CE7)),
-                        ),
-                      ],
+                          Text('${counter.count}',
+                            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFFE53935)),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
