@@ -77,7 +77,6 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     if (_isOverlayShowing) {
       await _closeOverlayWindow();
     }
-    // 刷新主页数据
     if (mounted) setState(() {});
   }
 
@@ -120,7 +119,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     );
   }
 
-  /// 进入悬浮球 PiP 模式：保存活跃计数器、显示悬浮窗、最小化应用
+  /// 进入悬浮球 PiP 模式
   Future<void> _enterPipMode(Counter counter) async {
     final hasPermission = await FlutterOverlayWindow.isPermissionGranted();
     if (!hasPermission) {
@@ -128,32 +127,29 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
       return;
     }
 
-    // 保存活跃计数器
     await CounterService.instance.setActiveCounterId(counter.id);
 
     try {
-      await FlutterOverlayWindow.showOverlay(
-        height: 100,
-        width: 100,
-        alignment: OverlayAlignment.center,
-        flag: OverlayFlag.focusPointer,
-        enableDrag: true,
-        overlayTitle: '${counter.name} - ${counter.count}',
-        overlayContent: '${counter.name}: ${counter.count}',
-      );
+      if (_isOverlayShowing) {
+        // 悬浮窗已显示，只更新数据
+        await _updateOverlayCounter(counter);
+      } else {
+        // 首次创建悬浮窗——使用 defaultMode 不拦截系统手势
+        await FlutterOverlayWindow.showOverlay(
+          height: 130,
+          width: 130,
+          alignment: OverlayAlignment.center,
+          flag: OverlayFlag.defaultMode,
+          enableDrag: true,
+          overlayTitle: counter.name,
+          overlayContent: '${counter.count}',
+        );
+        _isOverlayShowing = true;
+        await _startForegroundService(counter);
+      }
 
-      _isOverlayShowing = true;
-
-      // 同步计数器数据给悬浮窗
-      await FlutterOverlayWindow.shareData({
-        'action': 'updateActiveCounter',
-        'id': counter.id,
-        'name': counter.name,
-        'count': counter.count,
-      });
-
-      // 启动前台通知服务
-      await _startForegroundService(counter);
+      // 同步计数器数据
+      await _updateOverlayCounter(counter);
 
       // 最小化应用
       await _minimizeApp();
@@ -162,7 +158,15 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     }
   }
 
-  /// 通过原生层最小化应用
+  Future<void> _updateOverlayCounter(Counter counter) async {
+    await FlutterOverlayWindow.shareData({
+      'action': 'updateActiveCounter',
+      'id': counter.id,
+      'name': counter.name,
+      'count': counter.count,
+    });
+  }
+
   Future<void> _minimizeApp() async {
     try {
       await _channel.invokeMethod('moveTaskToBack');

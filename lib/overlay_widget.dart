@@ -132,8 +132,8 @@ class _OverlayWidgetState extends State<OverlayWidget> {
         onLongPress: _onLongPress,
         child: Center(
           child: Container(
-            width: 72,
-            height: 72,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const LinearGradient(
