@@ -24,7 +24,7 @@ class CounterApp extends StatelessWidget {
       title: '悬浮窗计数器',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF6C5CE7),
+        colorSchemeSeed: const Color(0xFFE53935),
         useMaterial3: true,
       ),
       home: const AppLifecycleManager(),
@@ -43,7 +43,6 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     with WidgetsBindingObserver {
   final MethodChannel _channel = const MethodChannel(_channelName);
   bool _isOverlayShowing = false;
-  Counter? _pendingPipCounter;
 
   @override
   void initState() {
@@ -69,19 +68,8 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.paused) {
-      _onAppPaused();
-    } else if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed) {
       _onAppResumed();
-    }
-  }
-
-  Future<void> _onAppPaused() async {
-    if (_isOverlayShowing) return;
-    // 如果有待进入 PiP 的计数器，显示悬浮窗
-    if (_pendingPipCounter != null && mounted) {
-      await _showOverlay(_pendingPipCounter!);
-      _pendingPipCounter = null;
     }
   }
 
@@ -89,7 +77,6 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     if (_isOverlayShowing) {
       await _closeOverlay();
     }
-    if (mounted) setState(() {});
   }
 
   Future<void> _requestPermissions() async {
@@ -115,7 +102,10 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('稍后再说')),
           ElevatedButton(
-            onPressed: () { Navigator.pop(ctx); FlutterOverlayWindow.requestPermission(); },
+            onPressed: () {
+              Navigator.pop(ctx);
+              FlutterOverlayWindow.requestPermission();
+            },
             child: const Text('去设置'),
           ),
         ],
@@ -123,69 +113,50 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
     );
   }
 
-  /// 双击卡片进入 PiP 模式
+  /// 双击卡片进入 PiP 模式：先显示悬浮窗，再最小化应用
   Future<void> _enterPipMode(Counter counter) async {
     if (!await FlutterOverlayWindow.isPermissionGranted()) {
       if (mounted) _showPermissionDialog();
       return;
     }
 
-    // 如果悬浮窗已显示，只需更新数据
-    if (_isOverlayShowing) {
-      await CounterService.instance.setActiveCounterId(counter.id);
-      await _updateOverlayData(counter);
-      if (mounted) setState(() {});
-      return;
-    }
-
-    // 设置活跃计数器，标记待进入 PiP
     await CounterService.instance.setActiveCounterId(counter.id);
-    _pendingPipCounter = counter;
 
-    // 最小化应用，触发 paused → _onAppPaused → _showOverlay
     try {
-      await _channel.invokeMethod('moveTaskToBack');
-    } catch (_) {
-      // moveTaskToBack 失败时直接显示悬浮窗
-      await _showOverlay(counter);
-      _pendingPipCounter = null;
-    }
-  }
+      // 如果悬浮窗尚未显示，先创建
+      if (!_isOverlayShowing) {
+        await FlutterOverlayWindow.showOverlay(
+          height: 130,
+          width: 130,
+          alignment: OverlayAlignment.center,
+          flag: OverlayFlag.focusPointer,
+          enableDrag: true,
+          overlayTitle: counter.name,
+          overlayContent: '${counter.count}',
+        );
+        _isOverlayShowing = true;
+      }
 
-  Future<void> _showOverlay(Counter counter) async {
-    if (_isOverlayShowing) return;
-    try {
-      await FlutterOverlayWindow.showOverlay(
-        height: 130,
-        width: 130,
-        alignment: OverlayAlignment.center,
-        flag: OverlayFlag.focusPointer,
-        enableDrag: true,
-        overlayTitle: counter.name,
-        overlayContent: '${counter.count}',
-      );
-      _isOverlayShowing = true;
-      await _updateOverlayData(counter);
-      await _startForegroundService(counter);
-    } catch (e) {
-      debugPrint('显示悬浮窗失败: $e');
-    }
-  }
-
-  Future<void> _updateOverlayData(Counter counter) async {
-    try {
+      // 同步计数器数据到悬浮窗
       await FlutterOverlayWindow.shareData({
         'action': 'updateActiveCounter',
         'id': counter.id,
         'name': counter.name,
         'count': counter.count,
       });
-    } catch (_) {}
+
+      // 启动前台通知服务
+      await _startForegroundService(counter);
+
+      // 最小化应用（悬浮窗已显示，最小化后即可看到）
+      await _channel.invokeMethod('moveTaskToBack');
+    } catch (e) {
+      debugPrint('进入悬浮球模式失败: $e');
+    }
   }
 
   Future<void> _closeOverlay() async {
     _isOverlayShowing = false;
-    _pendingPipCounter = null;
     await CounterService.instance.setActiveCounterId(null);
     try {
       await FlutterOverlayWindow.closeOverlay();
@@ -201,9 +172,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
         'count': counter.count,
         'name': counter.name,
       });
-    } catch (e) {
-      debugPrint('启动前台服务失败: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> _stopForegroundService() async {

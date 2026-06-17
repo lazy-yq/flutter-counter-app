@@ -95,7 +95,6 @@ class _OverlayWidgetState extends State<OverlayWidget> {
     }
   }
 
-  /// 双击关闭悬浮球
   Future<void> _closeOverlay() async {
     await FlutterOverlayWindow.closeOverlay();
   }
@@ -134,15 +133,11 @@ class _OverlayWidgetState extends State<OverlayWidget> {
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF6C5CE7), Color(0xFF4834D4)],
-              ),
+              color: const Color(0xFFE53935),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF6C5CE7).withOpacity(0.5),
-                  blurRadius: 16,
+                  color: const Color(0xFFE53935).withOpacity(0.6),
+                  blurRadius: 20,
                   offset: const Offset(0, 6),
                 ),
               ],
